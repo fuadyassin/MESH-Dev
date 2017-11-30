@@ -101,7 +101,15 @@ module rte_module
         type(ShedGridParams) :: shd
 
         !> Local variables.
+<<<<<<< HEAD
         integer n, l, ierr, iun
+=======
+        integer n, l
+        !!!!!!!!!!!!--LAM Aug-2017
+        integer iAllocate
+        !!!!!!!!!!!!--LAM Aug-2017
+        real ry, rx
+>>>>>>> Code for RBM outputs added to RTE, re-formatted from original source. Committed on behalf of Luis.Marin.
 
 !temp: for overrides
 !        integer, dimension(4) :: jstrdiv, istrdiv, jenddiv, ienddiv
@@ -664,6 +672,49 @@ module rte_module
         vs%grid%stgch = store2
         vs%grid%qo = qo2
 
+        !!!!!!!!!!!!--LAM Aug-2017
+        deltat_report_discharge = 1
+        frame_no = 0
+        no_frames = 0
+        fstflg = 'n'
+        rbmflg = 'y'
+        if (.NOT.allocated(outarray)) then
+            allocate(outarray(ycount,xcount),stat=iAllocate)
+            if(iAllocate.ne.0) STOP 'Error with allocation of ensim arrays in sub'
+        end if
+
+!        allocate(fln(999), filename(999),stat=iAllocate)
+!        if (iAllocate.ne.0) STOP 'Warning: error with allocation of area12a arrays in spl9'
+!        do i=51,100
+!            filename(i)='..'
+!        end do
+!        !filename(56)='gridflow.r2c'
+!        filename(59)='gridflow.fst'
+!        filename(60)='rbm_input.fst'
+!        filename(61)='flow_init.fst'
+
+        allocate(SA_RTE_fls_out%fl(2))
+        SA_RTE_fls_out%fl(1)%fn = 'gridflow.r2c'
+        SA_RTE_fls_out%fl(1)%iun = 59
+        SA_RTE_fls_out%fl(2)%fn = 'rbm_input.r2c'
+        SA_RTE_fls_out%fl(2)%iun = 60
+
+        ! Write the header
+        !call write_r2c(56,56,0,1,0,1,1)
+!        call write_r2c( &
+!            SA_RTE_fls_out, 1, shd, &
+!            0, 1, 0, 1, 1, &
+!            outarray, &
+!            '', '', '', 'MESH_DRIVER', 'MESH_DRIVER')
+        call write_r2c( &
+            SA_RTE_fls_out, 2, shd, &
+            1, 6, 0, 1, 1, &
+            outarray, &
+            '', '', '', 'MESH_DRIVER', 'MESH_DRIVER')
+
+        !fln(56)=filename(56)
+        !!!!!!!!!!!!--LAM Aug-2017
+
     end subroutine
 
     !>
@@ -941,6 +992,175 @@ module rte_module
 
         end do !n = 1, no_dt
 
+        !!!!!!!!!!!!--LAM Aug-2017
+        !> write to r2c file at the frequency specified by deltat_report_discharge in event.evt
+        !> take out conditional will write each time route is called
+        !> need to fix time stamp for frame header if this is done
+        !> rev. 9.4.01  Apr.  17/07  - NK: added deltat_report for gridflow.r2c
+
+        if (mod(fhr, deltat_report_discharge) == 0) then
+
+            !> trick to keep file open - it's closed after id loop below
+            frame_no = frame_no + 1
+            no_frames = frame_no + 1
+
+            do i = 1, ycount          ! Reinitialize the output array
+                do j = 1, xcount
+                    outarray(i, j) = 0.0
+                end do
+            end do
+            do n = 1, naa             ! Fill the output array with the values to be written
+                i = yyy(n)
+                j = xxx(n)
+                outarray(i, j) = avr_qo(n)
+            end do
+!            if (fstflg .eq. 'y') then
+!                call write_fst( &
+!                    59, filename(59), 'DISC', &
+!                    year1, month_now, day_now, hour_now, 0)
+!            else
+!                call write_r2c_old(56, 56, no_frames, 1, frame_no, 1, 8)
+!                call write_r2c( &
+!                    SA_RTE_fls_out, 1, shd, &
+!                    no_frames, 1, frame_no, 1, 8, &
+!                    outarray, &
+!                    '', '', '', '', '')
+!            end if
+
+            do i = 1, ycount          ! Reinitialize the output array
+                do j = 1, xcount
+                    outarray(i, j) = 0.0
+                end do
+            end do
+            do n = 1, naa             ! Fill the output array with the values to be written
+                i = yyy(n)
+                j = xxx(n)
+                outarray(i, j) = over(n)
+            end do
+!            if (fstflg .eq. 'y') then
+!                call write_fst( &
+!                    59, filename(59), 'OVER', &
+!                    year1, month_now, day_now, hour_now, 0)
+!            else
+!                call write_r2c_old(56, 56, no_frames, 1, frame_no, 1, 8)
+!                call write_r2c( &
+!                    SA_RTE_fls_out, 1, shd, &
+!                    no_frames, 1, frame_no, 1, 8, &
+!                    outarray, &
+!                    '', '', '', '', '')
+!            end if
+
+            if (rbmflg .eq. 'y') then
+
+                !> Average flow (discharge).
+                !> Note: avg_qo is averaged over the time-step.
+                do i = 1, ycount
+                    do j = 1, xcount
+                        outarray(i, j) = 0.0
+                    end do
+                end do
+                do n = 1, naa
+                    i = yyy(n)
+                    j = xxx(n)
+                    outarray(i, j) = avr_qo(n)
+                end do
+                call write_r2c( &
+                    SA_RTE_fls_out, 2, shd, &
+                    no_frames, 1, frame_no, 1, 8, &
+                    outarray, &
+                    '', '', '', '', '')
+
+                !> Inflow.
+                do i = 1, ycount
+                    do j = 1, xcount
+                        outarray(i, j) = 0.0
+                    end do
+                end do
+                do n = 1, naa
+                    i = yyy(n)
+                    j = xxx(n)
+                    outarray(i, j) = qi2(n)
+                end do
+                call write_r2c( &
+                    SA_RTE_fls_out, 2, shd, &
+                    no_frames, 1, frame_no, 1, 8, &
+                    outarray, &
+                    '', '', '', '', '')
+
+                !> Flow difference.
+                do i = 1, ycount
+                    do j = 1, xcount
+                        outarray(i, j) = 0.0
+                    end do
+                end do
+                do n = 1, naa
+                    i = yyy(n)
+                    j = xxx(n)
+                    outarray(i, j) = qo2(n) - qi2(n)
+                end do
+                call write_r2c( &
+                    SA_RTE_fls_out, 2, shd, &
+                    no_frames, 1, frame_no, 1, 8, &
+                    outarray, &
+                    '', '', '', '', '')
+
+                !> Channel depth.
+                do i = 1, ycount
+                    do j = 1, xcount
+                        outarray(i, j) = 0.0
+                    end do
+                end do
+                do n = 1, naa
+                    i = yyy(n)
+                    j = xxx(n)
+                    outarray(i, j) = chadep(n)
+                end do
+                call write_r2c( &
+                    SA_RTE_fls_out, 2, shd, &
+                    no_frames, 1, frame_no, 1, 8, &
+                    outarray, &
+                    '', '', '', '', '')
+
+                !> Channel width.
+                do i = 1, ycount
+                    do j = 1, xcount
+                        outarray(i, j) = 0.0
+                    end do
+                end do
+                do n = 1, naa
+                    i = yyy(n)
+                    j = xxx(n)
+                    outarray(i, j) = chawid(n)
+                end do
+                call write_r2c( &
+                    SA_RTE_fls_out, 2, shd, &
+                    no_frames, 1, frame_no, 1, 8, &
+                    outarray, &
+                    '', '', '', '', '')
+
+                !> Stream velocity.
+                !> Take stream speed to be average flow (m3/s) divided by channel x-sec area (m2)
+                !> (from rte_sub.f).
+                do i = 1, ycount
+                    do j = 1, xcount
+                        outarray(i, j) = 0.0
+                    end do
+                end do
+                do n = 1, naa
+                    i = yyy(n)
+                    j = xxx(n)
+                    outarray(i, j) = 0.5*(qo2(n) + qi2(n))/(chadep(n)*chawid(n))
+                end do
+                call write_r2c( &
+                    SA_RTE_fls_out, 2, shd, &
+                    no_frames, 1, frame_no, 1, 8, &
+                    outarray, &
+                    '', '', '', '', '')
+
+            end if !(rbmflg .eq. 'y')
+        end if !(mod(fhr, deltat_report_discharge) == 0)
+        !!!!!!!!!!!!--LAM Aug-2017
+
         !> Remember the last processed date/time in case need to output flow ICs after the time loop.
 !        year_last = year1
 !        month_last = month_now
@@ -1021,8 +1241,21 @@ module rte_module
 
         !> sa_mesh_variables: Variables, parameters, and types from SA_MESH.
         use model_files_variables
+<<<<<<< HEAD
         use sa_mesh_common
 !-        use FLAGS
+=======
+        use sa_mesh_shared_variables
+        use FLAGS
+
+        !!!!!!!!!!!!!!!!!!LAM
+        !> MODEL_OUTPUT: water_balance type for 'wb'.
+        use MODEL_OUTPUT
+        !!!!!!!!!!!!!!!!!!LAM
+
+        !> model_output_variabletypes: Streamflow and reservoir output variables for SA_MESH.
+        use model_output_variabletypes
+>>>>>>> Code for RBM outputs added to RTE, re-formatted from original source. Committed on behalf of Luis.Marin.
 
         type(fl_ids) :: fls
 
