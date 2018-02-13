@@ -1,5 +1,9 @@
 module rte_module
 
+!>>>>>>>>RBM,SED model outputs
+    use model_files_variables
+!<<<<<<<<RBM,SED model outputs
+
     implicit none
 
     !> Input variables for dynamic time-stepping.
@@ -75,6 +79,11 @@ module rte_module
 
 !temp: Override for irrigation
     integer, dimension(:), allocatable :: totirrigpts
+
+!>>>>>>>>RBM,SED model outputs
+    type(fl_ids), save :: SA_RTE_fls_out
+    real, dimension(:), allocatable, save :: hly_prec, hly_evap, hly_rofo
+!<<<<<<<<RBM,SED model outputs
 
     contains
 
@@ -690,6 +699,8 @@ module rte_module
             allocate(outarray(ycount,xcount),stat=iAllocate)
             if(iAllocate.ne.0) STOP 'Error with allocation of ensim arrays in sub'
         end if
+        allocate(hly_prec(na), hly_evap(na), hly_rofo(na))
+        hly_prec = 0.0; hly_evap = 0.0; hly_rofo = 0.0
 
         allocate(SA_RTE_fls_out%fl(3))
         SA_RTE_fls_out%fl(1)%fn = 'gridflow.r2c'
@@ -746,6 +757,7 @@ module rte_module
 
         !> sa_mesh_variables: Variables, parameters, and types from SA_MESH.
         use model_files_variables
+
         use sa_mesh_common
 
         !> model_dates: for 'ic' counter.
@@ -797,7 +809,13 @@ module rte_module
 
         !> Return if not the last time-step of the hour.
         if (ic%now%hour == ic%next%hour) return
-
+!>>>>>>>>RBM,SED model outputs
+        if (ic%ts_hourly == 1) then
+            hly_prec = 0.0; hly_evap = 0.0; hly_rofo = 0.0
+        end if
+        hly_prec = hly_prec + vs%grid%pre%ic%dts
+        hly_evap = hly_evap + vs%grid%et*ic%dts
+        hly_rofo = hly_rofo + vs%grid%ovrflw*ic%dts
         !> Increment counters.
         fhr = fhr + 1
 
@@ -1122,7 +1140,7 @@ module rte_module
                 !> Precipitation (mm h-1).
                 outarray = 0.0
                 do n = 1, naa
-                    outarray(yyy(n), xxx(n)) = wb%pre(n)
+                    outarray(yyy(n), xxx(n)) = hly_prec(n)
                 end do
                 if (sedflg == 'y') then
                     call write_r2c(SA_RTE_fls_out, 3, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
@@ -1131,7 +1149,7 @@ module rte_module
                 !> Evapotranspiration (m s-1).
                 outarray = 0.0
                 do n = 1, naa
-                    outarray(yyy(n), xxx(n)) = wb%evap(n)/1000.0/3600.0
+                    outarray(yyy(n), xxx(n)) = hly_evap(n)
                 end do
                 if (sedflg == 'y') then
                     call write_r2c(SA_RTE_fls_out, 3, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
@@ -1140,7 +1158,7 @@ module rte_module
                 !> Overland water depth (mm).
                 outarray = 0.0
                 do n = 1, naa
-                    outarray(yyy(n), xxx(n)) = wb%rofo(n)
+                    outarray(yyy(n), xxx(n)) = hly_rofo(n)
                 end do
                 if (sedflg == 'y') then
                     call write_r2c(SA_RTE_fls_out, 3, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
