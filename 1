@@ -1130,7 +1130,7 @@ module rte_module
                     if (shd%lc%ILMOS(k) < shd%NA) then
                         i = yyy(shd%lc%ILMOS(k))
                         j = xxx(shd%lc%ILMOS(k))
-                        outarray(i, j) = outarray(i, j) + pm%tile%xslp(k)*shd%lc%ACLASS(shd%lc%ILMOS(k), shd%lc%JLMOS(k))
+                        outarray(i, j) = outarray(i, j) + pm%tp%xslp(k)*shd%lc%ACLASS(shd%lc%ILMOS(k), shd%lc%JLMOS(k))
                     end if
                 end do
                 if (r2cout_sed) call write_r2c(RTE_r2cout_fls, 3, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
@@ -1163,7 +1163,7 @@ module rte_module
                 !> level = storage/area.
                 outarray = 0.0
                 do n = 1, naa
-                    outarray(yyy(n), xxx(n)) = vs%grid%stgch(n)/(chawid(n)*shd%CHNL_LEN(n))
+                    outarray(yyy(n), xxx(n)) = stas_grid%chnl%stg(n)/(chawid(n)*shd%CHNL_LEN(n))
                 end do
                 call write_r2c(RTE_r2cout_fls, 4, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
             end if
