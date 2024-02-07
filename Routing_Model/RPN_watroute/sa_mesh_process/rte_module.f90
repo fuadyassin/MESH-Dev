@@ -79,7 +79,7 @@ module rte_module
 
 !temp: Override for irrigation
     integer, dimension(:), allocatable :: totirrigpts
-
+	
 !>>>>>>>>RBM,SED model outputs
     type(fl_ids), save :: RTE_r2cout_fls
     real, dimension(:), allocatable, save :: hly_prec, hly_evap, hly_rofo
@@ -111,7 +111,6 @@ module rte_module
         type(ShedGridParams) :: shd
 
         !> Local variables.
-
         integer n, l, ierr, iun
 
 !temp: for overrides
@@ -674,8 +673,8 @@ module rte_module
         vs%grid%qi = qi2
         vs%grid%stgch = store2
         vs%grid%qo = qo2
-
-        !!!!!!!!!!!!--LAM Aug-2017
+		
+!>>>>>>>>RBM,SED model outputs
         deltat_report_discharge = 1
         frame_no = 0
         no_frames = 0
@@ -725,7 +724,6 @@ module rte_module
         !*  11. Cell width (m).
 !        !*  12. Overland flow velocity (m s-1).
 !        !*  13. Overland flow discharge (m3 s-1). discharge = waterdepth*1.0E-3*flowwidth*flowvelocity
-
 !        if (r2cout_sed) call write_r2c(RTE_r2cout_fls, 3, shd, 1, 13, 0, 1, 1, outarray, '', '', '', 'MESH_DRIVER', 'MESH_DRIVER')
         if (r2cout_sed) call write_r2c(RTE_r2cout_fls, 3, shd, 1, 11, 0, 1, 1, outarray, '', '', '', 'MESH_DRIVER', 'MESH_DRIVER')
 
@@ -749,7 +747,6 @@ module rte_module
 
         !> sa_mesh_variables: Variables, parameters, and types from SA_MESH.
         use model_files_variables
-
         use sa_mesh_common
 
         !> model_dates: for 'ic' counter.
@@ -775,12 +772,10 @@ module rte_module
         !> Local variables.
         integer n, l
         integer irindex
-
-        !> Local variables not used (passed to route.f)
-!temp: override to read from file
+		
         integer k, j, i
 
-        !> Local variables not used.
+        !> Local variables not used (passed to route.f).
         character(len = 14) :: date = ''
 
         !> Return if not the head node or if the process is not active.
@@ -793,14 +788,6 @@ module rte_module
         qr(1:naa) = qr(1:naa) + real(vs%grid%rff(1:naa)*shd%FRAC(1:naa), kind(qr))
         qr(1:naa) = qr(1:naa) + real(vs%grid%rchg(1:naa)*shd%FRAC(1:naa), kind(qr))
 
-        !> Reset SA_MESH output variables (for averaging).
-        !> Setting these to zero also prevents updating from the state variables upon return.
-        if (associated(out%ts%grid%qi)) out%ts%grid%qi = 0.0
-        if (associated(out%ts%grid%stgch)) out%ts%grid%stgch = 0.0
-        if (associated(out%ts%grid%qo)) out%ts%grid%qo = 0.0
-
-        !> Return if not the last time-step of the hour.
-        if (ic%now%hour == ic%next%hour) return
 !>>>>>>>>RBM,SED model outputs
         if (r2cout_rbm .or. r2cout_sed) then
             if (ic%ts_hourly == 1) then
@@ -810,6 +797,16 @@ module rte_module
             hly_evap = hly_evap + vs%grid%et*ic%dts
             hly_rofo = hly_rofo + vs%grid%ovrflw*ic%dts
         end if
+!<<<<<<<<RBM,SED model outputs
+
+        !> Reset SA_MESH output variables (for averaging).
+        !> Setting these to zero also prevents updating from the state variables upon return.
+        if (associated(out%ts%grid%qi)) out%ts%grid%qi = 0.0
+        if (associated(out%ts%grid%stgch)) out%ts%grid%stgch = 0.0
+        if (associated(out%ts%grid%qo)) out%ts%grid%qo = 0.0
+
+        !> Return if not the last time-step of the hour.
+        if (ic%now%hour == ic%next%hour) return
 
         !> Increment counters.
         fhr = fhr + 1
@@ -1024,7 +1021,32 @@ module rte_module
 
         end do !n = 1, no_dt
 
-        !!!!!!!!!!!!--LAM Aug-2017
+        !> Remember the last processed date/time in case need to output flow ICs after the time loop.
+!        year_last = year1
+!        month_last = month_now
+!        day_last = day_now
+!        hour_last = hour_now
+
+        !> Update SA_MESH output variables.
+        !> Output variables are updated at every model time-step; multiply averages
+        !> by the number of model time-steps in the routing time-step
+        if (associated(out%ts%grid%qi)) out%ts%grid%qi = inline_qi/no_dt*(3600/ic%dts)
+        if (associated(out%ts%grid%stgch)) out%ts%grid%stgch = inline_stgch/no_dt*(3600/ic%dts)
+        if (associated(out%ts%grid%qo)) out%ts%grid%qo = inline_qo/no_dt*(3600/ic%dts) !same as avr_qo
+
+        !> Deallocate the local variables for output averaging.
+        deallocate(inline_qi, inline_stgch, inline_qo)
+
+        !> Update SA_MESH variables.
+        !> Used by other processes and/or for resume file.
+        vs%grid%qi = qi2
+        vs%grid%stgch = store2
+        vs%grid%qo = qo2
+        if (fms%rsvr%n > 0) then
+            reach_last = lake_elv(:, fhr)
+        end if
+		
+!>>>>>>>>RBM,SED model outputs
         !> write to r2c file at the frequency specified by deltat_report_discharge in event.evt
         !> take out conditional will write each time route is called
         !> need to fix time stamp for frame header if this is done
@@ -1042,7 +1064,7 @@ module rte_module
                 !> Note: avg_qo is averaged over the time-step.
                 outarray = 0.0
                 do n = 1, naa
-                    outarray(yyy(n), xxx(n)) = avr_qo(n)
+                    outarray(yyy(n), xxx(n)) = vs%grid%qo(n)
                 end do
                 if (r2cout_rbm) call write_r2c(RTE_r2cout_fls, 2, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
                 if (r2cout_sed) call write_r2c(RTE_r2cout_fls, 3, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
@@ -1050,14 +1072,14 @@ module rte_module
                 !> Inflow (m3 s-1).
                 outarray = 0.0
                 do n = 1, naa
-                    outarray(yyy(n), xxx(n)) = qi2(n)
+                    outarray(yyy(n), xxx(n)) = vs%grid%qi(n)
                 end do
                 if (r2cout_rbm) call write_r2c(RTE_r2cout_fls, 2, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
 
                 !> Flow difference (m3 s-1).
                 outarray = 0.0
                 do n = 1, naa
-                    outarray(yyy(n), xxx(n)) = qo2(n) - qi2(n)
+                    outarray(yyy(n), xxx(n)) = vs%grid%qo(n) - vs%grid%qi(n)
                 end do
                 if (r2cout_rbm) call write_r2c(RTE_r2cout_fls, 2, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
 
@@ -1097,7 +1119,7 @@ module rte_module
                 !> (from rte_sub.f).
                 outarray = 0.0
                 do n = 1, naa
-                    outarray(yyy(n), xxx(n)) = 0.5*(qo2(n) + qi2(n))/(chadep(n)*chawid(n))
+                    outarray(yyy(n), xxx(n)) = 0.5*(vs%grid%qo(n) + vs%grid%qi(n))/(chadep(n)*chawid(n))
                 end do
                 if (r2cout_rbm) call write_r2c(RTE_r2cout_fls, 2, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
                 if (r2cout_sed) call write_r2c(RTE_r2cout_fls, 3, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
@@ -1169,32 +1191,7 @@ module rte_module
             end if
 
         end if !(mod(fhr, deltat_report_discharge) == 0)
-        !!!!!!!!!!!!--LAM Aug-2017
-
-        !> Remember the last processed date/time in case need to output flow ICs after the time loop.
-!        year_last = year1
-!        month_last = month_now
-!        day_last = day_now
-!        hour_last = hour_now
-
-        !> Update SA_MESH output variables.
-        !> Output variables are updated at every model time-step; multiply averages
-        !> by the number of model time-steps in the routing time-step
-        if (associated(out%ts%grid%qi)) out%ts%grid%qi = inline_qi/no_dt*(3600/ic%dts)
-        if (associated(out%ts%grid%stgch)) out%ts%grid%stgch = inline_stgch/no_dt*(3600/ic%dts)
-        if (associated(out%ts%grid%qo)) out%ts%grid%qo = inline_qo/no_dt*(3600/ic%dts) !same as avr_qo
-
-        !> Deallocate the local variables for output averaging.
-        deallocate(inline_qi, inline_stgch, inline_qo)
-
-        !> Update SA_MESH variables.
-        !> Used by other processes and/or for resume file.
-        vs%grid%qi = qi2
-        vs%grid%stgch = store2
-        vs%grid%qo = qo2
-        if (fms%rsvr%n > 0) then
-            reach_last = lake_elv(:, fhr)
-        end if
+!<<<<<<<<RBM,SED model outputs
 
     end subroutine
 
