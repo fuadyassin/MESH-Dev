@@ -104,7 +104,6 @@ module rte_module
         use model_files_variables
         use sa_mesh_common
 !-        use FLAGS
-        use resume_run
 
         type(fl_ids) :: fls
 
@@ -143,11 +142,7 @@ module rte_module
         step2 = astep*astep
         na = shd%NA
         naa = shd%NAA
-        if (shd%lc%NTYPE > 0) then
-            ntype = shd%lc%NTYPE + 1
-        else
-            ntype = 2
-        end if
+        ntype = shd%lc%NTYPE + 1
 
         !> Allocate and transfer grid variables.
         allocate(xxx(na), yyy(na), s(ycount, xcount), &
@@ -161,11 +156,7 @@ module rte_module
                  glacier_flag(na))
         xxx = shd%xxx
         yyy = shd%yyy
-!-        s = shd%RNKGRD
-        s = 0
-        do n = 1, na
-            s(yyy(n), xxx(n)) = n
-        end do
+        s = shd%RNKGRD
         next = shd%NEXT
         da = real(shd%DA, kind(da))
         bnkfll = real(shd%BNKFLL, kind(bnkfll))
@@ -179,12 +170,7 @@ module rte_module
         Nreaches = maxval(shd%IREACH)
         grid_area = real(shd%AREA, kind(grid_area))
         frac = real(shd%FRAC, kind(frac))
-        aclass = 0.0
-        if (allocated(shd%lc%ACLASS)) then
-            aclass(:, 1:ntype) = real(shd%lc%ACLASS, kind(aclass))
-        else if (ntype == 2) then
-            aclass(:, 1) = 1.0
-        end if
+        aclass = 0.0; aclass(:, 1:ntype) = real(shd%lc%ACLASS, kind(aclass))
         nhyd = 0
         glacier_flag = 'n'
 
@@ -423,7 +409,7 @@ module rte_module
         end if
 
         !> Channel and reservoir initialization.
-        if ((fms%rsvr%n > 0 .or. fms%stmg%n > 0) .and. resume_options%resume%state == FLAG_OFF) then
+        if ((fms%rsvr%n > 0 .or. fms%stmg%n > 0) .and. vs%flgs%resume%state == FLAG_OFF) then
             allocate(nbasin(ycount, xcount), r(na, ntype + 1), p(ycount,xcount), inbsnflg(no + noresv))
             nbasin = 0; p = 0.0; inbsnflg = 1
             if (fms%stmg%n > 0) then
@@ -667,7 +653,7 @@ module rte_module
         read(iun) store2
         read(iun) qi2
         if (fms%rsvr%n > 0) then
-            read(iun) lake_elv(:, 1)
+            read(iun) lake_elv(:, fhr)
         else
             read(iun)
         end if
@@ -805,7 +791,7 @@ module rte_module
             qr(1:naa) = 0.0
         end if
         qr(1:naa) = qr(1:naa) + real(vs%grid%rff(1:naa)*shd%FRAC(1:naa), kind(qr))
-!-        qr(1:naa) = qr(1:naa) + real(vs%grid%rchg(1:naa)*shd%FRAC(1:naa), kind(qr))
+        qr(1:naa) = qr(1:naa) + real(vs%grid%rchg(1:naa)*shd%FRAC(1:naa), kind(qr))
 
         !> Reset SA_MESH output variables (for averaging).
         !> Setting these to zero also prevents updating from the state variables upon return.
@@ -1034,13 +1020,7 @@ module rte_module
             !> Update the local variables for output averaging.
             if (associated(out%ts%grid%qi)) inline_qi = inline_qi + qi2
             if (associated(out%ts%grid%stgch)) inline_stgch = inline_stgch + store2
-            if (associated(out%ts%grid%qo)) then
-                inline_qo = inline_qo + qo2
-
-                !> Override to preserve flow passed to the outlet when the outlet is outside the basin
-                !>  (this condition is expected but not guaranteed).
-                if (na > naa) inline_qo(na) = inline_qo(na) + qi2(na)
-            end if
+            if (associated(out%ts%grid%qo)) inline_qo = inline_qo + qo2
 
         end do !n = 1, no_dt
 
@@ -1150,7 +1130,7 @@ module rte_module
                     if (shd%lc%ILMOS(k) < shd%NA) then
                         i = yyy(shd%lc%ILMOS(k))
                         j = xxx(shd%lc%ILMOS(k))
-                        outarray(i, j) = outarray(i, j) + pm%tile%xslp(k)*shd%lc%ACLASS(shd%lc%ILMOS(k), shd%lc%JLMOS(k))
+                        outarray(i, j) = outarray(i, j) + pm%tp%xslp(k)*shd%lc%ACLASS(shd%lc%ILMOS(k), shd%lc%JLMOS(k))
                     end if
                 end do
                 if (r2cout_sed) call write_r2c(RTE_r2cout_fls, 3, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
@@ -1183,7 +1163,7 @@ module rte_module
                 !> level = storage/area.
                 outarray = 0.0
                 do n = 1, naa
-                    outarray(yyy(n), xxx(n)) = vs%grid%stgch(n)/(chawid(n)*shd%CHNL_LEN(n))
+                    outarray(yyy(n), xxx(n)) = stas_grid%chnl%stg(n)/(chawid(n)*shd%CHNL_LEN(n))
                 end do
                 call write_r2c(RTE_r2cout_fls, 4, shd, no_frames, 1, frame_no, 1, 8, outarray, '', '', '', '', '')
             end if
