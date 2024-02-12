@@ -557,6 +557,64 @@ module rte_module
         vs%grid%qi = qi2
         vs%grid%stgch = store2
         vs%grid%qo = qo2
+		
+!>>>>>>>>RBM,SED model outputs
+        deltat_report_discharge = 1
+        frame_no = 0
+        no_frames = 0
+        r2cout_rbm = .true.
+        r2cout_sed = .true.
+        r2cout_lvl = .true.
+        if (r2cout_rbm .or. r2cout_sed) then
+            allocate(hly_prec(na), hly_evap(na), hly_rofo(na))
+            hly_prec = 0.0; hly_evap = 0.0; hly_rofo = 0.0
+        end if
+        if (r2cout_rbm .or. r2cout_sed .or. r2cout_lvl) then
+            if (.not. allocated(outarray)) then
+                allocate(outarray(ycount, xcount))
+                outarray = 0.0
+            end if
+            allocate(RTE_r2cout_fls%fl(4))
+            RTE_r2cout_fls%fl(1)%fn = 'gridflow.r2c'
+            RTE_r2cout_fls%fl(1)%iun = 59
+            RTE_r2cout_fls%fl(2)%fn = 'rbm_input.r2c'
+            RTE_r2cout_fls%fl(2)%iun = 60
+            RTE_r2cout_fls%fl(3)%fn = 'sed_input.r2c'
+            RTE_r2cout_fls%fl(3)%iun = 61
+            RTE_r2cout_fls%fl(4)%fn = 'ch_level.r2c'
+            RTE_r2cout_fls%fl(4)%iun = 62
+        end if
+
+        !> RBM
+        !*  1.  Average flow (discharge) (m3 s-1). Note: Averaged over the time-step.
+        !*  2.  Average inflow (m3 s-1). Note: Averaged over the time-step.
+        !*  3.  Flow difference (m3 s-1).  Note: Of average flow (discharge) and inflow.
+        !*  4.  Channel depth (m).
+        !*  5.  Channel width (m).
+        !*  6.  Stream velocity (m s-1). Take stream speed to be average flow (m3 s-1) divided by channel x-sec area (m2) (from rte_sub.f).
+        if (r2cout_rbm) call write_r2c(RTE_r2cout_fls, 2, shd, 1, 6, 0, 1, 1, outarray, '', '', '', 'MESH_DRIVER', 'MESH_DRIVER')
+
+        !> SED
+        !*  1.  Average flow (discharge) (m3 s-1). Note: Averaged over the time-step.
+        !*  2.  Channel depth (m).
+        !*  3.  Channel width (m).
+        !*  4.  Channel length (m).
+        !*  5.  Channel slope (m m-1). slope = sqrt(SLOPE_CHNL)
+        !*  6.  Stream velocity (m s-1). Take stream speed to be average flow (m3 s-1) divided by channel x-sec area (m2) (from rte_sub.f).
+        !*  7.  Precipitation (mm h-1). Note: Accumulated over the time-step.
+        !*  8.  Evapotranspiration (mm h-1). Note: Accumulated over the time-step.
+        !*  9.  Overland water depth (mm). Note: Accumulated over the time-step.
+        !*  10. Surface slope (m m-1). SLOPE_INT isn't used in CLASS, so average slope from tiles in cell?
+        !*  11. Cell width (m).
+!        !*  12. Overland flow velocity (m s-1).
+!        !*  13. Overland flow discharge (m3 s-1). discharge = waterdepth*1.0E-3*flowwidth*flowvelocity
+!        if (r2cout_sed) call write_r2c(RTE_r2cout_fls, 3, shd, 1, 13, 0, 1, 1, outarray, '', '', '', 'MESH_DRIVER', 'MESH_DRIVER')
+        if (r2cout_sed) call write_r2c(RTE_r2cout_fls, 3, shd, 1, 11, 0, 1, 1, outarray, '', '', '', 'MESH_DRIVER', 'MESH_DRIVER')
+
+        !> Channel level (m).
+        !>  1.  Channel level (m).
+        if (r2cout_lvl) call write_r2c(RTE_r2cout_fls, 4, shd, 1, 1, 0, 1, 1, outarray, '', '', '', 'MESH_DRIVER', 'MESH_DRIVER')
+!<<<<<<<<RBM,SED model outputs		
 
     end subroutine
 
@@ -673,64 +731,7 @@ module rte_module
         vs%grid%qi = qi2
         vs%grid%stgch = store2
         vs%grid%qo = qo2
-		
-!>>>>>>>>RBM,SED model outputs
-        deltat_report_discharge = 1
-        frame_no = 0
-        no_frames = 0
-        r2cout_rbm = .true.
-        r2cout_sed = .true.
-        r2cout_lvl = .true.
-        if (r2cout_rbm .or. r2cout_sed) then
-            allocate(hly_prec(na), hly_evap(na), hly_rofo(na))
-            hly_prec = 0.0; hly_evap = 0.0; hly_rofo = 0.0
-        end if
-        if (r2cout_rbm .or. r2cout_sed .or. r2cout_lvl) then
-            if (.not. allocated(outarray)) then
-                allocate(outarray(ycount, xcount))
-                outarray = 0.0
-            end if
-            allocate(RTE_r2cout_fls%fl(4))
-            RTE_r2cout_fls%fl(1)%fn = 'gridflow.r2c'
-            RTE_r2cout_fls%fl(1)%iun = 59
-            RTE_r2cout_fls%fl(2)%fn = 'rbm_input.r2c'
-            RTE_r2cout_fls%fl(2)%iun = 60
-            RTE_r2cout_fls%fl(3)%fn = 'sed_input.r2c'
-            RTE_r2cout_fls%fl(3)%iun = 61
-            RTE_r2cout_fls%fl(4)%fn = 'ch_level.r2c'
-            RTE_r2cout_fls%fl(4)%iun = 62
-        end if
 
-        !> RBM
-        !*  1.  Average flow (discharge) (m3 s-1). Note: Averaged over the time-step.
-        !*  2.  Average inflow (m3 s-1). Note: Averaged over the time-step.
-        !*  3.  Flow difference (m3 s-1).  Note: Of average flow (discharge) and inflow.
-        !*  4.  Channel depth (m).
-        !*  5.  Channel width (m).
-        !*  6.  Stream velocity (m s-1). Take stream speed to be average flow (m3 s-1) divided by channel x-sec area (m2) (from rte_sub.f).
-        if (r2cout_rbm) call write_r2c(RTE_r2cout_fls, 2, shd, 1, 6, 0, 1, 1, outarray, '', '', '', 'MESH_DRIVER', 'MESH_DRIVER')
-
-        !> SED
-        !*  1.  Average flow (discharge) (m3 s-1). Note: Averaged over the time-step.
-        !*  2.  Channel depth (m).
-        !*  3.  Channel width (m).
-        !*  4.  Channel length (m).
-        !*  5.  Channel slope (m m-1). slope = sqrt(SLOPE_CHNL)
-        !*  6.  Stream velocity (m s-1). Take stream speed to be average flow (m3 s-1) divided by channel x-sec area (m2) (from rte_sub.f).
-        !*  7.  Precipitation (mm h-1). Note: Accumulated over the time-step.
-        !*  8.  Evapotranspiration (mm h-1). Note: Accumulated over the time-step.
-        !*  9.  Overland water depth (mm). Note: Accumulated over the time-step.
-        !*  10. Surface slope (m m-1). SLOPE_INT isn't used in CLASS, so average slope from tiles in cell?
-        !*  11. Cell width (m).
-!        !*  12. Overland flow velocity (m s-1).
-!        !*  13. Overland flow discharge (m3 s-1). discharge = waterdepth*1.0E-3*flowwidth*flowvelocity
-!        if (r2cout_sed) call write_r2c(RTE_r2cout_fls, 3, shd, 1, 13, 0, 1, 1, outarray, '', '', '', 'MESH_DRIVER', 'MESH_DRIVER')
-        if (r2cout_sed) call write_r2c(RTE_r2cout_fls, 3, shd, 1, 11, 0, 1, 1, outarray, '', '', '', 'MESH_DRIVER', 'MESH_DRIVER')
-
-        !> Channel level (m).
-        !>  1.  Channel level (m).
-        if (r2cout_lvl) call write_r2c(RTE_r2cout_fls, 4, shd, 1, 1, 0, 1, 1, outarray, '', '', '', 'MESH_DRIVER', 'MESH_DRIVER')
-!<<<<<<<<RBM,SED model outputs
     end subroutine
 
     !>
